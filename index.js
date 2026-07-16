@@ -8,7 +8,9 @@ const {
 } = baileys;
 import axios from 'axios';
 import pino from 'pino';
-import QRCode from 'qrcode';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const qrcode = require('qrcode-terminal');
 
 const WEBHOOK_URL    = process.env.WEBHOOK_URL;    // https://support.alanbazan.com.mx/api/webhooks/baileys
 const WEBHOOK_TOKEN  = process.env.WEBHOOK_TOKEN;  // token secreto
@@ -60,8 +62,7 @@ async function connect() {
     sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
         if (qr) {
             console.log('\n📱 Escanea este QR con WhatsApp (Dispositivos vinculados → Vincular dispositivo):\n');
-            const qrText = await QRCode.toString(qr, { type: 'terminal', small: true });
-            console.log(qrText);
+            qrcode.generate(qr, { small: true });
         }
 
         if (connection === 'open') {
