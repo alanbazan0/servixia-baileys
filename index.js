@@ -1,9 +1,11 @@
-import makeWASocket, {
+import baileys from '@whiskeysockets/baileys';
+const {
+    default: makeWASocket,
     useMultiFileAuthState,
     DisconnectReason,
     fetchLatestBaileysVersion,
     makeCacheableSignalKeyStore,
-} from '@whiskeysockets/baileys';
+} = baileys;
 import axios from 'axios';
 import qrcode from 'qrcode-terminal';
 import pino from 'pino';
