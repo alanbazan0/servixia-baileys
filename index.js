@@ -3,7 +3,6 @@ const {
     default: makeWASocket,
     useMultiFileAuthState,
     DisconnectReason,
-    fetchLatestBaileysVersion,
     makeCacheableSignalKeyStore,
 } = baileys;
 import axios from 'axios';
@@ -95,8 +94,9 @@ async function sendToServixia(senderPhone, senderName, preview) {
 
 async function connect() {
     const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
-    const { version } = await fetchLatestBaileysVersion();
-    console.log(`[${new Date().toISOString()}] Conectando con Baileys v${version.join('.')}`);
+    // Versión fija de protocolo WhatsApp Web (evita fetchLatestBaileysVersion que puede fallar)
+    const version = [2, 3000, 1015901307];
+    console.log(`[${new Date().toISOString()}] Conectando con protocolo WA ${version.join('.')}`);
 
     const sock = makeWASocket({
         version,
