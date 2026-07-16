@@ -8,14 +8,16 @@ const {
 } = baileys;
 import axios from 'axios';
 import pino from 'pino';
+import http from 'http';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
-const qrcode = require('qrcode-terminal');
+const QRCode = require('qrcode');
 
-const WEBHOOK_URL    = process.env.WEBHOOK_URL;    // https://support.alanbazan.com.mx/api/webhooks/baileys
-const WEBHOOK_TOKEN  = process.env.WEBHOOK_TOKEN;  // token secreto
-const ACCOUNT_NAME   = process.env.ACCOUNT_NAME || 'default';
-const AUTH_DIR       = process.env.AUTH_DIR || './auth';
+const WEBHOOK_URL   = process.env.WEBHOOK_URL;
+const WEBHOOK_TOKEN = process.env.WEBHOOK_TOKEN;
+const ACCOUNT_NAME  = process.env.ACCOUNT_NAME || 'default';
+const AUTH_DIR      = process.env.AUTH_DIR || './auth';
+const PORT          = process.env.PORT || 3000;
 
 if (!WEBHOOK_URL || !WEBHOOK_TOKEN) {
     console.error('Missing WEBHOOK_URL or WEBHOOK_TOKEN env vars');
@@ -23,6 +25,55 @@ if (!WEBHOOK_URL || !WEBHOOK_TOKEN) {
 }
 
 const logger = pino({ level: 'silent' });
+
+let currentQR = null;
+let connected = false;
+
+// HTTP server: sirve el QR como imagen en el navegador
+const server = http.createServer(async (req, res) => {
+    if (req.url === '/health') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: connected ? 'connected' : 'waiting_qr', account: ACCOUNT_NAME }));
+        return;
+    }
+
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+
+    if (connected) {
+        res.end(`<!DOCTYPE html><html><body style="font-family:sans-serif;text-align:center;padding:40px">
+            <h2>✅ WhatsApp conectado</h2>
+            <p>Cuenta: <strong>${ACCOUNT_NAME}</strong></p>
+            <p>Los mensajes se reenvían a Servixia.</p>
+        </body></html>`);
+        return;
+    }
+
+    if (!currentQR) {
+        res.end(`<!DOCTYPE html><html><head><meta http-equiv="refresh" content="3"></head>
+            <body style="font-family:sans-serif;text-align:center;padding:40px">
+            <h2>⏳ Generando QR...</h2>
+            <p>Esta página se recarga automáticamente.</p>
+        </body></html>`);
+        return;
+    }
+
+    try {
+        const qrDataUrl = await QRCode.toDataURL(currentQR, { width: 300, margin: 2 });
+        res.end(`<!DOCTYPE html><html><head><meta http-equiv="refresh" content="20"></head>
+            <body style="font-family:sans-serif;text-align:center;padding:40px">
+            <h2>📱 Escanea con WhatsApp</h2>
+            <p>WhatsApp → Dispositivos vinculados → Vincular dispositivo</p>
+            <img src="${qrDataUrl}" style="max-width:300px;border:2px solid #25d366;border-radius:8px" />
+            <p style="color:#666;font-size:13px">Se renueva cada 20s. Si expira, recarga.</p>
+        </body></html>`);
+    } catch (err) {
+        res.end(`<p>Error: ${err.message}</p>`);
+    }
+});
+
+server.listen(PORT, () => {
+    console.log(`[QR Server] Puerto ${PORT} listo — abre la URL del deployment para escanear el QR`);
+});
 
 async function sendToServixia(senderPhone, senderName, preview) {
     try {
@@ -45,6 +96,7 @@ async function sendToServixia(senderPhone, senderName, preview) {
 async function connect() {
     const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
     const { version } = await fetchLatestBaileysVersion();
+    console.log(`[${new Date().toISOString()}] Conectando con Baileys v${version.join('.')}`);
 
     const sock = makeWASocket({
         version,
@@ -55,25 +107,33 @@ async function connect() {
         },
         printQRInTerminal: false,
         generateHighQualityLinkPreview: false,
+        browser: ['Servixia', 'Chrome', '1.0.0'],
     });
 
     sock.ev.on('creds.update', saveCreds);
 
     sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
         if (qr) {
-            console.log('\n📱 Escanea este QR con WhatsApp (Dispositivos vinculados → Vincular dispositivo):\n');
-            qrcode.generate(qr, { small: true });
+            currentQR = qr;
+            console.log(`[${new Date().toISOString()}] 📱 QR listo — abre la URL del deployment para escanearlo`);
         }
 
         if (connection === 'open') {
+            connected = true;
+            currentQR = null;
             console.log(`[${new Date().toISOString()}] ✅ Conectado a WhatsApp (cuenta: ${ACCOUNT_NAME})`);
         }
 
         if (connection === 'close') {
-            const code = lastDisconnect?.error?.output?.statusCode;
+            connected = false;
+            const err  = lastDisconnect?.error;
+            const code = err?.output?.statusCode;
+            console.log(`[${new Date().toISOString()}] Desconectado. Código: ${code ?? 'none'}. Error: ${err?.message ?? 'desconocido'}`);
+            if (err) console.log('Error detalle:', JSON.stringify(err?.output ?? {}, null, 2));
+
             const shouldReconnect = code !== DisconnectReason.loggedOut;
-            console.log(`[${new Date().toISOString()}] Desconectado (código: ${code}). Reconectar: ${shouldReconnect}`);
             if (shouldReconnect) {
+                console.log('Reconectando en 5s...');
                 setTimeout(connect, 5000);
             } else {
                 console.error('Sesión cerrada. Borra el directorio auth/ y vuelve a escanear el QR.');
