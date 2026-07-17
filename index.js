@@ -94,6 +94,7 @@ async function sendToServixia(senderPhone, senderName, preview) {
 }
 
 async function connect() {
+    try {
     const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
     const { version } = await fetchLatestBaileysVersion();
     console.log(`[${new Date().toISOString()}] Conectando con protocolo WA ${version.join('.')}`);
@@ -162,6 +163,26 @@ async function connect() {
             await sendToServixia(senderPhone, senderName, preview);
         }
     });
+    } catch (err) {
+        console.error(`[${new Date().toISOString()}] connect() error: ${err.message}`);
+        const delay = 120000 + Math.floor(Math.random() * 180000);
+        console.log(`Reintentando en ${Math.round(delay / 1000)}s...`);
+        setTimeout(connect, delay);
+    }
 }
+
+process.on('uncaughtException', (err) => {
+    console.error(`[${new Date().toISOString()}] uncaughtException: ${err.message}`);
+    const delay = 120000 + Math.floor(Math.random() * 180000);
+    console.log(`Reintentando en ${Math.round(delay / 1000)}s...`);
+    setTimeout(connect, delay);
+});
+
+process.on('unhandledRejection', (reason) => {
+    console.error(`[${new Date().toISOString()}] unhandledRejection: ${reason}`);
+    const delay = 120000 + Math.floor(Math.random() * 180000);
+    console.log(`Reintentando en ${Math.round(delay / 1000)}s...`);
+    setTimeout(connect, delay);
+});
 
 connect();
