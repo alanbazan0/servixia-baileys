@@ -135,8 +135,8 @@ async function connect() {
                 process.exit(1);
             }
 
-            // Jitter aleatorio entre 15-45s para no parecer bot
-            const delay = 15000 + Math.floor(Math.random() * 30000);
+            // Jitter aleatorio entre 2-5 minutos para no parecer bot
+            const delay = 120000 + Math.floor(Math.random() * 180000);
             console.log(`Reconectando en ${Math.round(delay / 1000)}s...`);
             setTimeout(connect, delay);
         }
