@@ -9,6 +9,8 @@ const {
 import axios from 'axios';
 import pino from 'pino';
 import http from 'http';
+import fs from 'fs';
+import path from 'path';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const QRCode = require('qrcode');
@@ -132,8 +134,15 @@ async function connect() {
             console.log(`[${new Date().toISOString()}] Desconectado. Código: ${code ?? 'none'}. Error: ${err?.message ?? 'desconocido'}`);
 
             if (code === DisconnectReason.loggedOut) {
-                console.error('Sesión cerrada. Borra el directorio auth/ y vuelve a escanear el QR.');
-                process.exit(1);
+                console.log(`[${new Date().toISOString()}] Sesión cerrada (401) — limpiando auth/ y reconectando para nuevo QR...`);
+                try {
+                    fs.rmSync(path.resolve(AUTH_DIR), { recursive: true, force: true });
+                    console.log(`[${new Date().toISOString()}] auth/ eliminado correctamente`);
+                } catch (e) {
+                    console.error(`[${new Date().toISOString()}] Error al eliminar auth/: ${e.message}`);
+                }
+                setTimeout(connect, 3000);
+                return;
             }
 
             // Jitter aleatorio entre 2-5 minutos para no parecer bot
