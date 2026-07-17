@@ -107,7 +107,7 @@ async function connect() {
         },
         printQRInTerminal: false,
         generateHighQualityLinkPreview: false,
-        browser: ['Servixia', 'Chrome', '1.0.0'],
+        browser: ['Chrome', 'Chrome', '124.0.0'],
     });
 
     sock.ev.on('creds.update', saveCreds);
@@ -129,16 +129,16 @@ async function connect() {
             const err  = lastDisconnect?.error;
             const code = err?.output?.statusCode;
             console.log(`[${new Date().toISOString()}] Desconectado. Código: ${code ?? 'none'}. Error: ${err?.message ?? 'desconocido'}`);
-            if (err) console.log('Error detalle:', JSON.stringify(err?.output ?? {}, null, 2));
 
-            const shouldReconnect = code !== DisconnectReason.loggedOut;
-            if (shouldReconnect) {
-                console.log('Reconectando en 5s...');
-                setTimeout(connect, 5000);
-            } else {
+            if (code === DisconnectReason.loggedOut) {
                 console.error('Sesión cerrada. Borra el directorio auth/ y vuelve a escanear el QR.');
                 process.exit(1);
             }
+
+            // Jitter aleatorio entre 15-45s para no parecer bot
+            const delay = 15000 + Math.floor(Math.random() * 30000);
+            console.log(`Reconectando en ${Math.round(delay / 1000)}s...`);
+            setTimeout(connect, delay);
         }
     });
 
