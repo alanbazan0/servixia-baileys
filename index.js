@@ -148,8 +148,9 @@ async function connect() {
         for (const msg of messages) {
             // Ignorar mensajes propios
             if (msg.key.fromMe) continue;
-            // Ignorar mensajes de grupos
+            // Ignorar grupos y estados
             if (msg.key.remoteJid?.endsWith('@g.us')) continue;
+            if (msg.key.remoteJid === 'status@broadcast') continue;
 
             const senderPhone = msg.key.remoteJid?.replace('@s.whatsapp.net', '') ?? '';
             const senderName  = msg.pushName ?? '';
